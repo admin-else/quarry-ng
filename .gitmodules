@@ -1,3 +1,0 @@
-[submodule "quarry/data"]
-	path = quarry/data
-	url = https://github.com/prismarinejs/minecraft-data
