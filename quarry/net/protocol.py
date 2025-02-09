@@ -265,12 +265,12 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         if not dispatched:
             self.packet_unhandled(buff, name)
 
-    def packet_unhandled(self, buff, name):
+    def packet_unhandled(self, data, name):
         """
         Called when a packet is received that is not hooked. The default
         implementation silently discards the packet.
         """
-        print("unhandeled packet", name)
+        print("unhandeled packet", self.recv_direction, self.protocol_mode, name, "data", data)
         pass
 
     def pack_bytes(self, data):

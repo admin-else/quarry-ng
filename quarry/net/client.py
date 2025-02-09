@@ -175,26 +175,12 @@ class ClientProtocol(Protocol):
         deferred = self.factory.profile.join(digest)
         deferred.addCallbacks(self.auth_ok, self.auth_failed)
 
-    def packet_login_success(self, buff):
-        # 1.16.x
-        if self.protocol_version >= 735:
-            p_uuid = buff.unpack_uuid()
-        # 1.15.x
-        else:
-            p_uuid = buff.unpack_string()
-        p_display_name = buff.unpack_string()
-
-        if self.protocol_version >= 759:
-            buff.read()  # Properties
-
+    def packet_success(self, data):
         self.switch_protocol_mode("play")
         self.player_joined()
 
-    def packet_login_set_compression(self, buff):
-        self.set_compression(buff.unpack_varint())
-
-    def packet_set_compression(self, buff):
-        self.set_compression(buff.unpack_varint())
+    def packet_compress(self, data):
+        self.set_compression(data["threshold"])
 
     packet_disconnect = packet_login_disconnect
 

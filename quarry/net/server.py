@@ -173,13 +173,15 @@ class ServerProtocol(Protocol):
         print(data)
         self.display_name = data["username"]
 
-        # ill add online shit later i cant be botherd ngl
+        # ill add online shit later i cant be bothered ngl
         self.login_expecting = None
         self.display_name_confirmed = True
         self.uuid = UUID.from_offline_player(self.display_name)
 
         self.player_joined()
 
+    def packet_login_acknowledged(self, data):
+        self.switch_mode("configuration")
 
     def packet_login_encryption_response(self, buff):
         if self.login_expecting != 1:
