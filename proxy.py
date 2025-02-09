@@ -1,5 +1,5 @@
 from twisted.internet import reactor
-from quarry.proxy import DownstreamFactory, Bridge
+from quarry.net.proxy import DownstreamFactory, Bridge
 
 
 class QuietBridge(Bridge):

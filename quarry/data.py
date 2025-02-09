@@ -2,7 +2,7 @@ import json
 import quarry
 from os import path
 
-PATH = path.join(quarry.__path__[0], "minecraft-data/data/")
+PATH = path.join(quarry.__path__[0], "data/data/")
 PATH_DATA = path.join(PATH, "dataPaths.json")
 COMMON_DATA = path.join(PATH, "pc/common")
 LATEST_PROTOCOL_VERSION = 769
