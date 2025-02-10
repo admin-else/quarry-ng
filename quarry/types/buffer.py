@@ -10,7 +10,6 @@ Reasons why i hate protodef
 
 import json
 import struct
-import uuid
 from mutf8.mutf8 import encode_modified_utf8, decode_modified_utf8
 import re
 from quarry.types.uuid import UUID
@@ -97,7 +96,7 @@ class Buffer:
             raise BufferUnderrun("buffer not big enough")
 
         data = self.data[self.pos : self.pos + count if count is not None else None]
-        self.pos = self.pos + count if count is not None else len(self)
+        self.pos = self.pos + count if count is not None else len(self.data)
         return data
 
     def pack_c(self, fmt, *fields):
@@ -301,6 +300,8 @@ class Buffer:
             if field.get("anon", False):
                 if type(data) is dict:
                     ret.update(data)
+                else:
+                    raise ValueError("anon value must be dict")
             else:
                 ret[field["name"]] = data
         self.container_stack.pop()
@@ -592,6 +593,22 @@ class Buffer:
     def pack_json(self, data):
         self.pack("string", json.dumps(data))
 
+    def unpack_registry_entry_holder_set(self, protodef):
+        n = self.unpack_varint()
+        if n == 0:
+            return {protodef["base"]["name"]: self.unpack(protodef["base"]["type"])}
+        return {protodef["otherwise"]["name"]: self.unpack(protodef["otherwise"]["type"]) for _ in range(n)}
+
+    def pack_registry_entry_holder_set(self, protodef, data):
+        if protodef["base"]["name"] in data:
+            self.pack_varint(0)
+            self.pack(protodef["base"]["type"], data[protodef["base"]["name"]])
+        elif protodef["otherwise"]["name"] in data:
+            self.pack_varint(len(data[protodef["otherise"]["name"]]))
+            [self.pack(protodef["otherwise"]["type"], value) for value in data[protodef["otherwise"]["name"]]]
+        else:
+            raise ValueError("data has to have a base or otherwise key")
+        
     # fuck camel case
     def alias(self, new_name, old_name):
         setattr(self, new_name, getattr(self, old_name))
@@ -606,3 +623,4 @@ class Buffer:
         self.alias_pair("anonymousNbt", "anonymous_nbt")
         self.alias_pair("restBuffer", "rest_buffer")
         self.alias_pair("anonOptionalNbt", "anon_optional_nbt")
+        self.alias_pair("registryEntryHolderSet", "registry_entry_holder_set")

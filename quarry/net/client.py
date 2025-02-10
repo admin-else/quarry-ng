@@ -177,11 +177,18 @@ class ClientProtocol(Protocol):
 
     def packet_success(self, data):
         self.send_packet("login_acknowledged")
-        self.switch_protocol_mode("configureaion")
+        self.switch_protocol_mode("configuration")
         self.player_joined()
 
     def packet_compress(self, data):
         self.set_compression(data["threshold"])
+    
+    def packet_select_known_packs(self, data):
+        self.send_packet("select_known_packs", data)
+    
+    def packet_finish_configuration(self, data):
+        self.send_packet("finish_configuration")
+        self.switch_protocol_mode("play")
 
     packet_disconnect = packet_login_disconnect
 
@@ -286,8 +293,8 @@ class SpawningClientProtocol(ClientProtocol):
         self.ticker.add_loop(20, self.update_player_full)
         self.spawned = True
 
-    def packet_keep_alive(self, buff):
-        self.send_packet("keep_alive", buff.read())
+    def packet_keep_alive(self, data):
+        self.send_packet("keep_alive", data)
 
 
 class ClientFactory(Factory, protocol.ClientFactory):

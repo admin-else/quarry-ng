@@ -1,3 +1,4 @@
+import logging
 from twisted.internet import reactor
 from quarry.net.proxy import DownstreamFactory, Bridge
 

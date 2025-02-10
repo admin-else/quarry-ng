@@ -114,6 +114,8 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             ("handshaking", "status"),
             ("handshaking", "login"),
             ("login", "play"),
+            ("login", "configuration"),
+            ("configuration", "play")
         ]
 
         if (self.protocol_mode, mode) not in transitions:
@@ -225,7 +227,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             if uncompressed_length > 0:
                 buff = Buffer(
                     zlib.decompress(buff.unpack_bytes()),
-                    types=self.recv_buff,
+                    types=self.recv_types,
                 )
         return buff
 
@@ -245,10 +247,15 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             try:
                 buff = self.unpack_bytes(self.recv_buff)
                 unpacked = buff.unpack("packet")
+                if len(buff):
+                    raise BufferUnderrun("uhh not all read")
                 self.packet_received(unpacked["params"], unpacked["name"])
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
+            except Exception: # catch all
+                self.logger
+
 
     def packet_received(self, buff, name):
         """
