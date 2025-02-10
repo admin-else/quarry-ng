@@ -176,7 +176,8 @@ class ClientProtocol(Protocol):
         deferred.addCallbacks(self.auth_ok, self.auth_failed)
 
     def packet_success(self, data):
-        self.switch_protocol_mode("play")
+        self.send_packet("login_acknowledged")
+        self.switch_protocol_mode("configureaion")
         self.player_joined()
 
     def packet_compress(self, data):

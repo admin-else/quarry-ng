@@ -285,14 +285,13 @@ class Buffer:
         else:
             type_name, next_protodef = protodef
 
-        protodef = self.types.get(type_name)
-        try:
-            method = getattr(self, "pack_" + type_name)
+        method = getattr(self, "pack_" + type_name, None)
+        if method:
             if next_protodef is not None:
                 return method(next_protodef, data)
             return method(data)
-        except AttributeError:
-            self.pack(protodef, data)
+        protodef = self.types.get(type_name)
+        self.pack(protodef, data)
 
     def unpack_container(self, protodef):
         ret = {}
