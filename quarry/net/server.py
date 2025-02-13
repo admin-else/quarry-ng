@@ -1,6 +1,5 @@
 import base64
 import json
-import time
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.padding import PKCS1v15
@@ -170,7 +169,6 @@ class ServerProtocol(Protocol):
     def packet_login_start(self, data):
         if self.login_expecting != 0:
             raise ProtocolError("Out-of-order login")
-        print(data)
         self.display_name = data["username"]
 
         # ill add online shit later i cant be bothered ngl

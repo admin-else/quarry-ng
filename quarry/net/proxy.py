@@ -1,5 +1,4 @@
-import logging
-
+from twisted import logger as log
 from quarry.net.protocol import PacketDispatcher
 from quarry.net.server import ServerFactory, ServerProtocol
 from quarry.net.client import ClientFactory, ClientProtocol
@@ -67,7 +66,7 @@ class Bridge(PacketDispatcher):
     """
 
     upstream_factory_class = UpstreamFactory
-    log_level = logging.INFO
+    log_level = log.LogLevel.info
 
     logger = None
     buff_type = None
@@ -83,9 +82,7 @@ class Bridge(PacketDispatcher):
         self.downstream_factory = downstream_factory
         self.downstream = downstream
 
-        self.logger = logging.getLogger(
-            "%s{%s}" % (self.__class__.__name__, self.downstream.remote_addr.host)
-        )
+        self.logger = log.Logger()
         self.logger.setLevel(self.log_level)
 
     def make_profile(self):

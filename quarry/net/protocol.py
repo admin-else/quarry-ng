@@ -1,13 +1,14 @@
-import logging
+import sys
 import zlib
 from twisted.internet import protocol
-
+from twisted import logger as log
 import quarry
 import quarry.types
 from quarry.data import LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS
 from quarry.types.buffer import Buffer, BufferUnderrun
 from quarry.net.crypto import Cipher
 from quarry.net.ticker import Ticker
+
 
 protocol_modes = {0: "init", 1: "status", 2: "login", 3: "play"}
 protocol_modes_inv = dict(((v, k) for k, v in protocol_modes.items()))
@@ -60,10 +61,12 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
         self.cipher = Cipher()
 
-        self.logger = logging.getLogger(
-            "%s{%s}" % (self.__class__.__name__, self.remote_addr.host)
-        )
-        self.logger.setLevel(self.factory.log_level)
+        self.logger = log.Logger()
+
+        # this is just the code to set the log level 
+        log_level_predicate = log.LogLevelFilterPredicate(defaultLogLevel=log.LogLevel.info)
+        observer = log.FilteringLogObserver(log.textFileLogObserver(sys.stdout), [log_level_predicate])
+        log.globalLogPublisher.addObserver(observer)
 
         self.ticker = self.factory.ticker_type(self.logger)
         self.ticker.start()
@@ -115,7 +118,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             ("handshaking", "login"),
             ("login", "play"),
             ("login", "configuration"),
-            ("configuration", "play")
+            ("configuration", "play"),
         ]
 
         if (self.protocol_mode, mode) not in transitions:
@@ -250,12 +253,13 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                 if len(buff):
                     raise BufferUnderrun("uhh not all read")
                 self.packet_received(unpacked["params"], unpacked["name"])
+                self.connection_timer.reset()
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
-            except Exception: # catch all
-                self.logger
-
+            except Exception as e:  # catch all
+                self.logger.error(f"Failed to decode packet: {e}")
+                pass
 
     def packet_received(self, buff, name):
         """
@@ -277,7 +281,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         Called when a packet is received that is not hooked. The default
         implementation silently discards the packet.
         """
-        print("unhandeled packet", self.recv_direction, self.protocol_mode, name, "data", data)
+        # print("unhandeled packet", self.recv_direction, self.protocol_mode, name, "data", data)
         pass
 
     def pack_bytes(self, data):
@@ -316,7 +320,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 class Factory(protocol.Factory, object):
     protocol = Protocol
     ticker_type = Ticker
-    log_level = logging.INFO
+    log_level = log.LogLevel.info
     connection_timeout = 30
     force_protocol_version = None
 
