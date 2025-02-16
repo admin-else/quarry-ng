@@ -267,14 +267,17 @@ class Buffer:
         else:
             type_name, data = protodef
 
-        protodef = self.types.get(type_name)
-        if not protodef:
-            raise ValueError(f"i cannot find the protodef for {type_name}")
         method = getattr(self, "unpack_" + type_name, None)
         if method:
             if data is not None:
                 return method(data)
             return method()
+
+        protodef = self.types.get(type_name)
+        if protodef == "native":
+            raise NotImplementedError(f"Please implement {type_name}")
+        if not protodef:
+            raise ValueError(f"i cannot find the protodef for {type_name}")
         return self.unpack(protodef)
 
     def pack(self, protodef, data):
@@ -300,8 +303,6 @@ class Buffer:
             if field.get("anon", False):
                 if type(data) is dict:
                     ret.update(data)
-                else:
-                    raise ValueError("anon value must be dict")
             else:
                 ret[field["name"]] = data
         self.container_stack.pop()
@@ -597,7 +598,10 @@ class Buffer:
         n = self.unpack_varint()
         if n == 0:
             return {protodef["base"]["name"]: self.unpack(protodef["base"]["type"])}
-        return {protodef["otherwise"]["name"]: self.unpack(protodef["otherwise"]["type"]) for _ in range(n)}
+        return {
+            protodef["otherwise"]["name"]: self.unpack(protodef["otherwise"]["type"])
+            for _ in range(n)
+        }
 
     def pack_registry_entry_holder_set(self, protodef, data):
         if protodef["base"]["name"] in data:
@@ -605,10 +609,30 @@ class Buffer:
             self.pack(protodef["base"]["type"], data[protodef["base"]["name"]])
         elif protodef["otherwise"]["name"] in data:
             self.pack_varint(len(data[protodef["otherise"]["name"]]))
-            [self.pack(protodef["otherwise"]["type"], value) for value in data[protodef["otherwise"]["name"]]]
+            [
+                self.pack(protodef["otherwise"]["type"], value)
+                for value in data[protodef["otherwise"]["name"]]
+            ]
         else:
             raise ValueError("data has to have a base or otherwise key")
-        
+
+    # i should implement support for what this is doing but iam lazy
+    # https://github.com/PrismarineJS/node-minecraft-protocol/blob/e9eb551ba30ec2e742c49e6927be6402b413bb76/src/datatypes/compiler-minecraft.js#L195
+    def unpack_bitflags(self, protodef):
+        data = self.unpack(protodef["type"])
+        ret = []
+        for i, name in enumerate(protodef["flags"]):
+            if data & 2 << i:
+                ret.append(name)
+        return ret
+
+    def pack_bitflags(self, protodef, data):
+        data = 0
+        for i, name in enumerate(protodef["flags"]):
+            if name in data:
+                data |= 2 << i
+        self.pack(protodef["type"], data)
+
     # fuck camel case
     def alias(self, new_name, old_name):
         setattr(self, new_name, getattr(self, old_name))
@@ -624,3 +648,4 @@ class Buffer:
         self.alias_pair("restBuffer", "rest_buffer")
         self.alias_pair("anonOptionalNbt", "anon_optional_nbt")
         self.alias_pair("registryEntryHolderSet", "registry_entry_holder_set")
+        self.alias_pair("topBitSetTerminatedArray", "top_bit_set_terminated_array")

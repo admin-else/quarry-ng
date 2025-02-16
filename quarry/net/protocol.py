@@ -64,7 +64,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         self.logger = log.Logger()
 
         # this is just the code to set the log level 
-        log_level_predicate = log.LogLevelFilterPredicate(defaultLogLevel=log.LogLevel.info)
+        log_level_predicate = log.LogLevelFilterPredicate(defaultLogLevel=self.factory.log_level)
         observer = log.FilteringLogObserver(log.textFileLogObserver(sys.stdout), [log_level_predicate])
         log.globalLogPublisher.addObserver(observer)
 
@@ -153,7 +153,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             self.transport.loseConnection()
             self.closed = True
 
-    def log_packet(self, prefix, name):
+    def log_packet(self, prefix, name, data):
         """Logs a packet at debug level"""
 
         self.logger.debug("Packet %s %s/%s" % (prefix, self.protocol_mode, name))
@@ -190,7 +190,6 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
     def connection_timed_out(self):
         """Called when the connection has been idle too long"""
-
         self.close("Connection timed out")
 
     # Auth callbacks ----------------------------------------------------------
@@ -253,13 +252,12 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                 if len(buff):
                     raise BufferUnderrun("uhh not all read")
                 self.packet_received(unpacked["params"], unpacked["name"])
-                self.connection_timer.reset()
+                self.connection_timer.restart()
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
             except Exception as e:  # catch all
                 self.logger.error(f"Failed to decode packet: {e}")
-                pass
 
     def packet_received(self, buff, name):
         """
@@ -269,7 +267,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         want to override this to implement your own dispatch logic or logging.
         """
 
-        self.log_packet(". recv", name)
+        self.log_packet(". recv", name, buff)
 
         dispatched = self.dispatch((name,), buff)
 
@@ -281,7 +279,6 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         Called when a packet is received that is not hooked. The default
         implementation silently discards the packet.
         """
-        # print("unhandeled packet", self.recv_direction, self.protocol_mode, name, "data", data)
         pass
 
     def pack_bytes(self, data):
@@ -309,7 +306,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         if self.closed:
             return
 
-        self.log_packet("# send", name)
+        self.log_packet("# send", name, data)
 
         b = Buffer(types=self.send_types)
         b.pack("packet", {"name": name, "params": data})
