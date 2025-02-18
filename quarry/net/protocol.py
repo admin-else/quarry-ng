@@ -63,9 +63,13 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
         self.logger = log.Logger()
 
-        # this is just the code to set the log level 
-        log_level_predicate = log.LogLevelFilterPredicate(defaultLogLevel=self.factory.log_level)
-        observer = log.FilteringLogObserver(log.textFileLogObserver(sys.stdout), [log_level_predicate])
+        # this is just the code to set the log level
+        log_level_predicate = log.LogLevelFilterPredicate(
+            defaultLogLevel=self.factory.log_level
+        )
+        observer = log.FilteringLogObserver(
+            log.textFileLogObserver(sys.stdout), [log_level_predicate]
+        )
         log.globalLogPublisher.addObserver(observer)
 
         self.ticker = self.factory.ticker_type(self.logger)
@@ -84,7 +88,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         self.protocol, self.protocol_version, self.version_name = (
             quarry.data.get_protocol(protocol_version)
         )
-        self.protocol["types"]["mapper"] = "native"
+        self.protocol["types"]["mapper"] = "native" # protodef braindamage
         self.switch_mode(self.protocol_mode)
 
     def switch_mode(self, mode):
@@ -219,11 +223,8 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
     # Packet handling ---------------------------------------------------------
 
-    def unpack_bytes(self, buff):
-        buff = Buffer(
-            self.recv_buff.unpack_bytes(self.recv_buff.unpack_varint()),
-            self.recv_types,
-        )
+    def unpack_bytes(self):
+        buff = Buffer(self.recv_buff.unpack_bytes(self.recv_buff.unpack_varint()), types=self.recv_types)
         if self.compression_threshold >= 0:
             uncompressed_length = buff.unpack_varint()
             if uncompressed_length > 0:
@@ -234,20 +235,14 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         return buff
 
     def data_received(self, data):
-        # Decrypt data
         data = self.cipher.decrypt(data)
-
-        # Add it to our buffer
         self.recv_buff.pack_bytes(data)
 
-        # Read some packets
         while not self.closed:
-            # Save the buffer, in case we read an incomplete packet
             self.recv_buff.save()
 
-            # Read the packet
             try:
-                buff = self.unpack_bytes(self.recv_buff)
+                buff = self.unpack_bytes()
                 unpacked = buff.unpack("packet")
                 if len(buff):
                     raise BufferUnderrun("uhh not all read")

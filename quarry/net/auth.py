@@ -24,7 +24,7 @@ class AuthException(http.HTTPException):
 class OfflineProfile(object):
     online = False
 
-    def __init__(self, display_name="quarry"):
+    def __init__(self, display_name="quarry_ng"):
         self.display_name = display_name
         self.uuid = UUID.from_offline_player(display_name)
 

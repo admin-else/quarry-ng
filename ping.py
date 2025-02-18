@@ -7,7 +7,7 @@ see in the "Multiplayer" menu of the official client.
 """
 
 from twisted.internet import reactor
-from quarry.client import ClientFactory, ClientProtocol
+from quarry.net.client import ClientFactory, ClientProtocol
 
 
 class PingProtocol(ClientProtocol):
@@ -33,6 +33,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
-
     main()
