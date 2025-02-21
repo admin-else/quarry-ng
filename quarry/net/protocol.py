@@ -223,7 +223,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
     # Packet handling ---------------------------------------------------------
 
-    def unpack_bytes(self):
+    def unpack_data(self):
         buff = Buffer(self.recv_buff.unpack_bytes(self.recv_buff.unpack_varint()), types=self.recv_types)
         if self.compression_threshold >= 0:
             uncompressed_length = buff.unpack_varint()
@@ -232,7 +232,10 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                     zlib.decompress(buff.unpack_bytes()),
                     types=self.recv_types,
                 )
-        return buff
+        data = buff.unpack("packet")
+        if len(buff.data) != buff.pos:
+            raise BufferUnderrun("not all read")
+        return data
 
     def data_received(self, data):
         data = self.cipher.decrypt(data)
@@ -242,17 +245,17 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             self.recv_buff.save()
 
             try:
-                buff = self.unpack_bytes()
-                unpacked = buff.unpack("packet")
-                if len(buff):
-                    raise BufferUnderrun("uhh not all read")
-                self.packet_received(unpacked["params"], unpacked["name"])
-                self.connection_timer.restart()
+                unpacked = self.unpack_data()
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
             except Exception as e:  # catch all
                 self.logger.error(f"Failed to decode packet: {e}")
+                continue
+
+            self.packet_received(unpacked["params"], unpacked["name"])
+            self.connection_timer.restart()
+
 
     def packet_received(self, buff, name):
         """

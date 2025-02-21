@@ -77,6 +77,10 @@ class Buffer:
     def reset(self):
         self.data = b""
         self.pos = 0
+        
+    def set_data(self, data):
+        self.data = data
+        self.pos = 0
 
     def save(self):
         self.data = self.data[self.pos :]

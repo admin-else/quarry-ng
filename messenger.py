@@ -12,8 +12,9 @@ from time import time
 from twisted import logger as log
 from twisted.internet import reactor, stdio
 from twisted.protocols import basic
-from quarry.net.auth import OfflineProfile
+from quarry.net.auth import OfflineProfile, Profile
 from quarry.net.client import ClientFactory, SpawningClientProtocol
+from quarry.types import uuid
 
 
 class StdioProtocol(basic.LineReceiver):
@@ -85,7 +86,7 @@ class MinecraftFactory(ClientFactory):
 def run():
     # Log in
     # Create factory
-    factory = MinecraftFactory(OfflineProfile())
+    factory = MinecraftFactory(Profile(access_token="eyJraWQiOiJhYzg0YSIsImFsZyI6IkhTMjU2In0.eyJ4dWlkIjoiMjUzNTQwODczNjU4Mzg2NyIsImFnZyI6IkFkdWx0Iiwic3ViIjoiZmFjYWQ2NjYtNGFiYS00MDU3LTlmOWQtMzQ5NDI2NDQ2MzAzIiwiYXV0aCI6IlhCT1giLCJucyI6ImRlZmF1bHQiLCJyb2xlcyI6W10sImlzcyI6ImF1dGhlbnRpY2F0aW9uIiwiZmxhZ3MiOlsidHdvZmFjdG9yYXV0aCIsIm1pbmVjcmFmdF9uZXQiLCJtc2FtaWdyYXRpb25fc3RhZ2U0Iiwib3JkZXJzXzIwMjIiLCJtdWx0aXBsYXllciJdLCJwcm9maWxlcyI6eyJtYyI6IjM2MzIzMzBkLTM3MzctNDI3MC04ZThmLTI3MGU1ODFjNDVkYiJ9LCJwbGF0Zm9ybSI6IlVOS05PV04iLCJ5dWlkIjoiZGFiNGQ0ZDJmMDU3NDdhY2YxODlhMWU1MTUwMzlkY2QiLCJuYmYiOjE3NDAwODYzODYsImV4cCI6MTc0MDE3Mjc4NiwiaWF0IjoxNzQwMDg2Mzg2fQ.g1baVXOP7lMnp0bXpz0gOHQ37MEf88Gog4BoVq6CsuY", display_name="Admin_Else", uuid=uuid.UUID("3632330d-3737-4270-8e8f-270e581c45db"), client_token=""))
 
     # Connect!
     factory.connect("127.0.0.1")

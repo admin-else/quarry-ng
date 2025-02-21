@@ -76,30 +76,7 @@ class ClientProtocol(Protocol):
         p_shared_secret = crypto.encrypt_secret(self.public_key, self.shared_secret)
         p_verify_token = crypto.encrypt_secret(self.public_key, self.verify_token)
 
-        # 1.7.x
-        if self.protocol_version <= 5:
-            pack_array = lambda d: self.buff_type.pack("h", len(d)) + d
-
-        # 1.8.x
-        else:
-            pack_array = lambda d: self.buff_type.pack_varint(len(d), max_bits=16) + d
-
-        # 1.19+
-        if self.protocol_version >= 759:
-            self.send_packet(
-                "login_encryption_response",
-                pack_array(p_shared_secret),
-                self.buff_type.pack(
-                    "?", True
-                ),  # Indicate we are still doing things the old way
-                pack_array(p_verify_token),
-            )
-        else:
-            self.send_packet(
-                "login_encryption_response",
-                pack_array(p_shared_secret) + pack_array(p_verify_token),
-            )
-
+        self.send_packet("encryption_begin", {"sharedSecret": p_shared_secret, "verifyToken": p_verify_token})
         # Enable encryption
         self.cipher.enable(self.shared_secret)
         self.logger.debug("Encryption enabled")
@@ -143,32 +120,19 @@ class ClientProtocol(Protocol):
     def packet_login_disconnect(self, data):
         self.logger.warn(f"Kicked: {data["reason"]}")
         self.close()
-
-    def packet_login_encryption_request(self, buff):
-        p_server_id = buff.unpack_string()
-
-        # 1.7.x
-        if self.protocol_version <= 5:
-            unpack_array = lambda b: b.read(b.unpack("h"))
-        # 1.8.x
-        else:
-            unpack_array = lambda b: b.read(b.unpack_varint(max_bits=16))
-
-        p_public_key = unpack_array(buff)
-        p_verify_token = unpack_array(buff)
-
+    def packet_encryption_begin(self, data):
         if not self.factory.profile.online:
             raise ProtocolError(
                 "Can't log into online-mode server while using offline profile"
             )
 
         self.shared_secret = crypto.make_shared_secret()
-        self.public_key = crypto.import_public_key(p_public_key)
-        self.verify_token = p_verify_token
+        self.public_key = crypto.import_public_key(data["publicKey"])
+        self.verify_token = data["verifyToken"]
 
         # make digest
         digest = crypto.make_digest(
-            p_server_id.encode("ascii"), self.shared_secret, p_public_key
+            data["serverId"].encode("ascii"), self.shared_secret, data["publicKey"]
         )
 
         # do auth
