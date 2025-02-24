@@ -1,6 +1,6 @@
-import logging
 from twisted.internet import reactor
 from quarry.net.proxy import DownstreamFactory, Bridge
+from twisted.logger import LogLevel
 
 
 class QuietBridge(Bridge):
@@ -84,6 +84,7 @@ class QuietBridge(Bridge):
 
 class QuietDownstreamFactory(DownstreamFactory):
     bridge_class = QuietBridge
+    log_level = LogLevel.debug
     motd = "Proxy Server"
 
 

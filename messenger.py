@@ -6,6 +6,7 @@ Bridges minecraft chat (in/out) with stdout and stdin.
 This client makes no attempt to verify received signed messages, or sign sent messages.
 """
 
+import json
 import os
 import sys
 from time import time
@@ -66,6 +67,9 @@ class MinecraftProtocol(SpawningClientProtocol):
                 "acknowledged": b"",
             },
         )
+    
+    def packet_registry_data(self, data):
+        self.logger.debug("registry data {data}", data=json.dumps(data))
 
 
 class MinecraftFactory(ClientFactory):

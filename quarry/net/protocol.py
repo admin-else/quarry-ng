@@ -2,6 +2,7 @@ import sys
 import zlib
 from twisted.internet import protocol
 from twisted import logger as log
+from twisted.internet import defer
 import quarry
 import quarry.types
 from quarry.data import LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS
@@ -102,6 +103,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         self.send_types.update(
             self.protocol[mode][TERMS_MAP[self.send_direction]]["types"]
         )
+        self.logger.debug(f"Switched mode to {mode}")
 
     # Fix ugly twisted methods ------------------------------------------------
 
@@ -232,10 +234,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                     zlib.decompress(buff.unpack_bytes()),
                     types=self.recv_types,
                 )
-        data = buff.unpack("packet")
-        if len(buff.data) != buff.pos:
-            raise BufferUnderrun("not all read")
-        return data
+        return buff
 
     def data_received(self, data):
         data = self.cipher.decrypt(data)
@@ -245,19 +244,29 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             self.recv_buff.save()
 
             try:
-                unpacked = self.unpack_data()
+                buffer = self.unpack_data()
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
-            except Exception as e:  # catch all
-                self.logger.error(f"Failed to decode packet: {e}")
+            
+            try:
+                unpacked = buffer.unpack("packet")
+                if len(buffer):
+                    raise BufferUnderrun("not all unpack")
+            except Exception as e:
+                self.unpack_failed(e, buffer)
                 continue
+
+            unpacked["params"]["buff"] = buffer # hack for inspection of raw bytes
 
             self.packet_received(unpacked["params"], unpacked["name"])
             self.connection_timer.restart()
+        
+    def unpack_failed(self, error, buffer):
+        """Called when bytes unpacked but packet unpacked failed"""
+        self.logger.debug(f"Failed to unpack {error} on a {len(buffer.data)}B packet")
 
-
-    def packet_received(self, buff, name):
+    def packet_received(self, data, name):
         """
         Called when a packet is received from the remote. Usually this method
         dispatches the packet to a method named ``packet_<packet name>``, or
@@ -265,12 +274,12 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         want to override this to implement your own dispatch logic or logging.
         """
 
-        self.log_packet(". recv", name, buff)
+        self.log_packet(". recv", name, data)
 
-        dispatched = self.dispatch((name,), buff)
+        dispatched = self.dispatch((name,), data)
 
         if not dispatched:
-            self.packet_unhandled(buff, name)
+            self.packet_unhandled(data, name)
 
     def packet_unhandled(self, data, name):
         """

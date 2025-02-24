@@ -1,3 +1,4 @@
+import sys
 from twisted import logger as log
 from quarry.net.protocol import PacketDispatcher
 from quarry.net.server import ServerFactory, ServerProtocol
@@ -11,8 +12,8 @@ def _enable_forwarding(endpoint):
     through the bridge.
     """
 
-    def packet_received(buff, name):
-        endpoint.bridge.packet_received(buff, endpoint.recv_direction, name)
+    def packet_received(data, name):
+        endpoint.bridge.packet_received(data, name, endpoint.recv_direction)
 
     endpoint._packet_received = endpoint.packet_received
     endpoint.packet_received = packet_received
@@ -82,8 +83,18 @@ class Bridge(PacketDispatcher):
         self.downstream_factory = downstream_factory
         self.downstream = downstream
 
+        
         self.logger = log.Logger()
-        self.logger.setLevel(self.log_level)
+
+        # this is just the code to set the log level
+        log_level_predicate = log.LogLevelFilterPredicate(
+            defaultLogLevel=self.log_level
+        )
+        observer = log.FilteringLogObserver(
+            log.textFileLogObserver(sys.stdout), [log_level_predicate]
+        )
+        log.globalLogPublisher.addObserver(observer)
+
 
     def make_profile(self):
         """
@@ -191,7 +202,7 @@ class Bridge(PacketDispatcher):
 
     # Packet handling ---------------------------------------------------------
 
-    def packet_received(self, buff, direction, name):
+    def packet_received(self, data, name, direction):
         """
         Called when a packet is received a remote. Usually this method
         dispatches the packet to a method named
@@ -200,20 +211,20 @@ class Bridge(PacketDispatcher):
         your own dispatch logic or logging.
         """
 
-        dispatched = self.dispatch((direction, name), buff)
+        dispatched = self.dispatch((direction, name), data)
 
         if not dispatched:
-            self.packet_unhandled(buff, direction, name)
+            self.packet_unhandled(direction, direction, name)
 
-    def packet_unhandled(self, buff, direction, name):
+    def packet_unhandled(self, data, direction, name):
         """
         Called when a packet is received that is not hooked. The default
         implementation forwards the packet.
         """
         if direction == "downstream":
-            self.downstream.send_packet(name, buff.read())
+            self.downstream.send_packet(name, data)
         elif direction == "upstream":
-            self.upstream.send_packet(name, buff.read())
+            self.upstream.send_packet(name, data)
 
     def packet_downstream_set_compression(self, buff):
         self.upstream.set_compression(buff.unpack_varint())

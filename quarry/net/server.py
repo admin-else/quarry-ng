@@ -175,11 +175,16 @@ class ServerProtocol(Protocol):
         self.login_expecting = None
         self.display_name_confirmed = True
         self.uuid = UUID.from_offline_player(self.display_name)
+        self.send_packet("success", {"username": self.display_name, "uuid": self.uuid, "properties": []})
 
-        self.player_joined()
 
     def packet_login_acknowledged(self, data):
         self.switch_mode("configuration")
+    
+    def packet_finish_configuration(self, data):
+        self.send_packet("finish_configuration")
+        self.switch_mode("play")
+        self.player_joined()
 
     def packet_login_encryption_response(self, buff):
         if self.login_expecting != 1:
