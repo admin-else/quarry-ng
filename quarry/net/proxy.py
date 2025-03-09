@@ -44,6 +44,8 @@ def _enable_fast_forwarding(endpoint1, endpoint2):
 
 
 class Upstream(ClientProtocol):
+    logger_namespace = "quarry.net.proxy.upstream"
+
     def setup(self):
         self.bridge = self.factory.bridge
         self.bridge.upstream = self
@@ -54,6 +56,9 @@ class Upstream(ClientProtocol):
     def connection_lost(self, reason=None):
         ClientProtocol.connection_lost(self, reason)
         self.bridge.upstream_disconnected()
+
+    def log_packet(self, prefix, name, data):
+        self.logger.debug("Upstream Packet %s %s/%s" % (prefix, self.protocol_mode, name))
 
 
 class UpstreamFactory(ClientFactory):
@@ -214,7 +219,7 @@ class Bridge(PacketDispatcher):
         dispatched = self.dispatch((direction, name), data)
 
         if not dispatched:
-            self.packet_unhandled(direction, direction, name)
+            self.packet_unhandled(data, direction, name)
 
     def packet_unhandled(self, data, direction, name):
         """
@@ -228,9 +233,18 @@ class Bridge(PacketDispatcher):
 
     def packet_downstream_set_compression(self, buff):
         self.upstream.set_compression(buff.unpack_varint())
-
+        
+    def packet_downstream_finish_configuration(self, data):
+        downstram_packet = self.downstream.pack_data("finish_configuration") # make packet when packet types still loaded
+        upstream_packet = self.upstream.pack_data("finish_configuration")
+        self.downstream.switch_protocol_mode("play") # switch to make sure new packets will be parsed with play
+        self.upstream.switch_protocol_mode("play")
+        self.downstream.transport.write(downstram_packet) # write packet after confirmed switch to play
+        self.upstream.transport.write(upstream_packet)
+        
 
 class Downstream(ServerProtocol):
+    logger_namespace = "quarry.net.proxy.downstream"
     bridge = None
 
     def setup(self):
@@ -243,6 +257,10 @@ class Downstream(ServerProtocol):
     def connection_lost(self, reason=None):
         ServerProtocol.connection_lost(self, reason)
         self.bridge.downstream_disconnected()
+
+
+    def log_packet(self, prefix, name, data):
+        self.logger.debug("Downstream Packet %s %s/%s" % (prefix, self.protocol_mode, name))
 
 
 class DownstreamFactory(ServerFactory):

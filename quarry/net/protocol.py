@@ -2,7 +2,7 @@ import sys
 import zlib
 from twisted.internet import protocol
 from twisted import logger as log
-from twisted.internet import defer
+from twisted.internet.defer import Lock
 import quarry
 import quarry.types
 from quarry.data import LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS
@@ -55,6 +55,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
     compression_threshold = -1
     in_game = False
     closed = False
+    logger_namespace = __name__
 
     def __init__(self, factory, remote_addr):
         self.factory = factory
@@ -62,7 +63,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
         self.cipher = Cipher()
 
-        self.logger = log.Logger()
+        self.logger = log.Logger(self.logger_namespace)
 
         # this is just the code to set the log level
         log_level_predicate = log.LogLevelFilterPredicate(
@@ -307,6 +308,11 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         data = self.cipher.encrypt(data)
         return data
 
+    def pack_data(self, name, data={}):
+        b = Buffer(types=self.send_types)
+        b.pack("packet", {"name": name, "params": data})
+        return self.pack_bytes(b.data)
+    
     def send_packet(self, name, data={}):
         """Sends a packet to the remote."""
 
@@ -315,10 +321,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
         self.log_packet("# send", name, data)
 
-        b = Buffer(types=self.send_types)
-        b.pack("packet", {"name": name, "params": data})
-        data = self.pack_bytes(b.data)
-        self.transport.write(data)
+        self.transport.write(self.pack_data(name=name, data=data))
 
 
 class Factory(protocol.Factory, object):

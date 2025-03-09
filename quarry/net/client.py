@@ -142,6 +142,7 @@ class ClientProtocol(Protocol):
     def packet_success(self, data):
         self.send_packet("login_acknowledged")
         self.switch_protocol_mode("configuration")
+        self.player_joined()
 
     def packet_compress(self, data):
         self.set_compression(data["threshold"])
@@ -152,7 +153,6 @@ class ClientProtocol(Protocol):
     def packet_finish_configuration(self, data):
         self.send_packet("finish_configuration")
         self.switch_protocol_mode("play")
-        self.player_joined()
 
     packet_disconnect = packet_login_disconnect
 

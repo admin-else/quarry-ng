@@ -48,47 +48,6 @@ class ServerProtocol(Protocol):
 
     def switch_protocol_mode(self, mode):
         self.check_protocol_mode_switch(mode)
-
-        if mode == "play":
-            if self.factory.compression_threshold and self.protocol_version >= 47:
-                # Send set compression
-                self.send_packet(
-                    "compress",
-                    {"threshold": self.factory.compression_threshold}
-                )
-                self.set_compression(self.factory.compression_threshold)
-
-            # Send login success
-            if self.protocol_version >= 759:  # 1.19+
-                self.send_packet(
-                    "success",
-                    {"uuid": self.uuid, "username": self.display_name, "properties": []}
-                )  # Profile properties
-            elif self.protocol_version > 578:
-                self.send_packet(
-                    "login_success",
-                    self.buff_type.pack_uuid(self.uuid)
-                    + self.buff_type.pack_string(self.display_name),
-                )
-            else:
-                self.send_packet(
-                    "login_success",
-                    self.buff_type.pack_string(self.uuid.to_hex())
-                    + self.buff_type.pack_string(self.display_name),
-                )
-
-            if self.protocol_version <= 5:
-
-                def make_safe():
-                    self.safe_kick.callback(None)
-                    self.safe_kick = None
-
-                def make_unsafe():
-                    self.safe_kick = defer.Deferred()
-                    self.ticker.add_delay(10, make_safe)
-
-                make_unsafe()
-
         self.protocol_mode = mode
 
     def close(self, reason=None):
@@ -135,8 +94,6 @@ class ServerProtocol(Protocol):
 
         self.logger.info("%s has joined." % self.display_name)
 
-        self.switch_protocol_mode("play")
-
     def player_left(self):
         """Called when the player leaves the game"""
         Protocol.player_left(self)
@@ -180,11 +137,11 @@ class ServerProtocol(Protocol):
 
     def packet_login_acknowledged(self, data):
         self.switch_mode("configuration")
+        self.player_joined()
     
     def packet_finish_configuration(self, data):
         self.send_packet("finish_configuration")
         self.switch_mode("play")
-        self.player_joined()
 
     def packet_login_encryption_response(self, buff):
         if self.login_expecting != 1:

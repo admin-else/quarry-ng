@@ -567,7 +567,7 @@ class Buffer:
         }
 
     def pack_nbt_anon(self, data):
-        self.pack_nbt_byte(reverse_lookup(NBT_TYPE_MAP, data["type"]))
+        self.pack_nbt_byte(reverse_lookup(NBT_TYPE_MAP, data))
         self.pack("nbt_" + data["type"], data["value"])
 
     def unpack_nbt_anon(self):
