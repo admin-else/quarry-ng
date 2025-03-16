@@ -45,11 +45,6 @@ class ServerProtocol(Protocol):
         self.verify_token = crypto.make_verify_token()
 
     # Convenience functions ---------------------------------------------------
-
-    def switch_protocol_mode(self, mode):
-        self.check_protocol_mode_switch(mode)
-        self.protocol_mode = mode
-
     def close(self, reason=None):
         """Closes the connection"""
         if not self.closed and reason is not None:
@@ -57,7 +52,6 @@ class ServerProtocol(Protocol):
             if self.protocol_mode == "play":
 
                 def real_kick(*a):
-                    self.send_packet("disconnect", {"reason": Message.from_string(reason).to_string()})
                     super(ServerProtocol, self).close(reason)
 
                 if self.safe_kick:

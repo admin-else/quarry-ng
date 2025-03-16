@@ -1,10 +1,9 @@
 import sys
 from twisted import logger as log
-from quarry.net.protocol import PacketDispatcher
+from quarry.net.protocol import PacketDispatcher, PackingError
 from quarry.net.server import ServerFactory, ServerProtocol
 from quarry.net.client import ClientFactory, ClientProtocol
 from quarry.net.auth import OfflineProfile
-
 
 def _enable_forwarding(endpoint):
     """
@@ -12,8 +11,9 @@ def _enable_forwarding(endpoint):
     through the bridge.
     """
 
-    def packet_received(data, name):
-        endpoint.bridge.packet_received(data, name, endpoint.recv_direction)
+    def packet_received(data, name, buffer):
+        endpoint.log_packet(". recv", name, data)
+        endpoint.bridge.packet_received(data, name, endpoint.recv_direction, buffer)
 
     endpoint._packet_received = endpoint.packet_received
     endpoint.packet_received = packet_received
@@ -59,6 +59,9 @@ class Upstream(ClientProtocol):
 
     def log_packet(self, prefix, name, data):
         self.logger.debug("Upstream Packet %s %s/%s" % (prefix, self.protocol_mode, name))
+        
+    def unpack_failed(self, error, buffer):
+        self.bridge.downstream.send_bytes(buffer.data)
 
 
 class UpstreamFactory(ClientFactory):
@@ -207,7 +210,7 @@ class Bridge(PacketDispatcher):
 
     # Packet handling ---------------------------------------------------------
 
-    def packet_received(self, data, name, direction):
+    def packet_received(self, data, name, direction, buffer):
         """
         Called when a packet is received a remote. Usually this method
         dispatches the packet to a method named
@@ -219,29 +222,31 @@ class Bridge(PacketDispatcher):
         dispatched = self.dispatch((direction, name), data)
 
         if not dispatched:
-            self.packet_unhandled(data, direction, name)
+            self.packet_unhandled(data, direction, name, buffer)
 
-    def packet_unhandled(self, data, direction, name):
+    def packet_unhandled(self, data, direction, name, buffer):
         """
         Called when a packet is received that is not hooked. The default
         implementation forwards the packet.
         """
-        if direction == "downstream":
-            self.downstream.send_packet(name, data)
-        elif direction == "upstream":
-            self.upstream.send_packet(name, data)
+        try:
+            if direction == "downstream":
+                self.downstream.send_packet(name, data)
+            elif direction == "upstream":
+                self.upstream.send_packet(name, data)
+        except PackingError:
+            if direction == "downstream":
+                self.downstream.send_bytes(buffer.data)
+            elif direction == "upstream":
+                self.upstream.send_bytes(buffer.data)
 
     def packet_downstream_set_compression(self, buff):
         self.upstream.set_compression(buff.unpack_varint())
         
-    def packet_downstream_finish_configuration(self, data):
-        downstram_packet = self.downstream.pack_data("finish_configuration") # make packet when packet types still loaded
-        upstream_packet = self.upstream.pack_data("finish_configuration")
-        self.downstream.switch_protocol_mode("play") # switch to make sure new packets will be parsed with play
+    def packet_upstream_finish_configuration(self, data):
+        self.upstream.send_packet("finish_configuration")
+        self.downstream.switch_protocol_mode("play")
         self.upstream.switch_protocol_mode("play")
-        self.downstream.transport.write(downstram_packet) # write packet after confirmed switch to play
-        self.upstream.transport.write(upstream_packet)
-        
 
 class Downstream(ServerProtocol):
     logger_namespace = "quarry.net.proxy.downstream"
@@ -253,6 +258,9 @@ class Downstream(ServerProtocol):
     def player_joined(self):
         ServerProtocol.player_joined(self)
         self.bridge.downstream_ready()
+        
+    def unpack_failed(self, error, buffer):
+        self.send_bytes(buffer.data)
 
     def connection_lost(self, reason=None):
         ServerProtocol.connection_lost(self, reason)

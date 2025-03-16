@@ -15,7 +15,8 @@ import re
 from quarry.types.uuid import UUID
 
 
-class BufferUnderrun(Exception): ...
+class BufferUnderrun(Exception):
+    pass
 
 
 MAX_VARNUM_LEN = 10
@@ -77,7 +78,7 @@ class Buffer:
     def reset(self):
         self.data = b""
         self.pos = 0
-        
+
     def set_data(self, data):
         self.data = data
         self.pos = 0
@@ -631,11 +632,11 @@ class Buffer:
         return ret
 
     def pack_bitflags(self, protodef, data):
-        data = 0
+        result = 0
         for i, name in enumerate(protodef["flags"]):
             if name in data:
-                data |= 2 << i
-        self.pack(protodef["type"], data)
+                result |= 2 << i
+        self.pack(protodef["type"], result)
 
     # fuck camel case
     def alias(self, new_name, old_name):

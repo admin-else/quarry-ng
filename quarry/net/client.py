@@ -106,17 +106,6 @@ class ClientProtocol(Protocol):
     def packet_server_info(self, data):
         self.status_server_info(json.loads(data["response"]))
 
-    def packet_login_plugin_request(self, buff):
-        p_message_id = buff.unpack_varint()
-        p_channel = buff.unpack_string()
-        p_payload = buff.read()
-
-        self.send_packet(
-            "login_plugin_response",
-            self.buff_type.pack_varint(p_message_id),
-            self.buff_type.pack("?", False),
-        )
-
     def packet_login_disconnect(self, data):
         self.logger.warn(f"Kicked: {data["reason"]}")
         self.close()
@@ -184,73 +173,6 @@ class SpawningClientProtocol(ClientProtocol):
                 True,
             ),
         )
-
-    def packet_player_position_and_look(self, buff):
-        p_pos_look = buff.unpack("dddff")
-
-        # 1.7.x
-        if self.protocol_version <= 5:
-            p_on_ground = buff.unpack("?")
-            self.pos_look = p_pos_look
-
-        # 1.8.x
-        else:
-            p_flags = buff.unpack("B")
-
-            for i in range(5):
-                if p_flags & (1 << i):
-                    self.pos_look[i] += p_pos_look[i]
-                else:
-                    self.pos_look[i] = p_pos_look[i]
-
-            # 1.9.x
-            if self.protocol_version > 47:
-                teleport_id = buff.unpack_varint()
-
-            if self.protocol_version > 754:
-                dismount_vehicle = buff.unpack("?")
-
-        # Send Player Position And Look
-
-        # 1.7.x
-        if self.protocol_version <= 5:
-            self.send_packet(
-                "player_position_and_look",
-                self.buff_type.pack(
-                    "ddddff?",
-                    self.pos_look[0],
-                    self.pos_look[1] - 1.62,
-                    self.pos_look[1],
-                    self.pos_look[2],
-                    self.pos_look[3],
-                    self.pos_look[4],
-                    True,
-                ),
-            )
-
-        # 1.8.x
-        elif self.protocol_version <= 47:
-            self.send_packet(
-                "player_position_and_look",
-                self.buff_type.pack(
-                    "dddff?",
-                    self.pos_look[0],
-                    self.pos_look[1],
-                    self.pos_look[2],
-                    self.pos_look[3],
-                    self.pos_look[4],
-                    True,
-                ),
-            )
-
-        # 1.9.x
-        else:
-            self.send_packet(
-                "teleport_confirm", self.buff_type.pack_varint(teleport_id)
-            )
-
-        if not self.spawned:
-            self.spawn()
 
     def spawn(self):
         self.ticker.add_loop(1, self.update_player_inc)

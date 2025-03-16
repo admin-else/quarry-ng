@@ -2,7 +2,6 @@ import sys
 import zlib
 from twisted.internet import protocol
 from twisted import logger as log
-from twisted.internet.defer import Lock
 import quarry
 import quarry.types
 from quarry.data import LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS
@@ -16,6 +15,10 @@ protocol_modes_inv = dict(((v, k) for k, v in protocol_modes.items()))
 
 
 class ProtocolError(Exception):
+    pass
+
+
+class PackingError(Exception):
     pass
 
 
@@ -90,7 +93,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         self.protocol, self.protocol_version, self.version_name = (
             quarry.data.get_protocol(protocol_version)
         )
-        self.protocol["types"]["mapper"] = "native" # protodef braindamage
+        self.protocol["types"]["mapper"] = "native"  # protodef braindamage
         self.switch_mode(self.protocol_mode)
 
     def switch_mode(self, mode):
@@ -135,7 +138,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
     def switch_protocol_mode(self, mode):
         self.check_protocol_mode_switch(mode)
-        self.protocol_mode = mode
+        self.switch_mode(mode)
 
     def set_compression(self, compression_threshold):
         self.compression_threshold = compression_threshold
@@ -227,7 +230,10 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
     # Packet handling ---------------------------------------------------------
 
     def unpack_data(self):
-        buff = Buffer(self.recv_buff.unpack_bytes(self.recv_buff.unpack_varint()), types=self.recv_types)
+        buff = Buffer(
+            self.recv_buff.unpack_bytes(self.recv_buff.unpack_varint()),
+            types=self.recv_types,
+        )
         if self.compression_threshold >= 0:
             uncompressed_length = buff.unpack_varint()
             if uncompressed_length > 0:
@@ -235,6 +241,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                     zlib.decompress(buff.unpack_bytes()),
                     types=self.recv_types,
                 )
+        buff.save()
         return buff
 
     def data_received(self, data):
@@ -249,7 +256,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             except BufferUnderrun:
                 self.recv_buff.restore()
                 break
-            
+
             try:
                 unpacked = buffer.unpack("packet")
                 if len(buffer):
@@ -258,16 +265,14 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
                 self.unpack_failed(e, buffer)
                 continue
 
-            unpacked["params"]["buff"] = buffer # hack for inspection of raw bytes
-
-            self.packet_received(unpacked["params"], unpacked["name"])
+            self.packet_received(unpacked["params"], unpacked["name"], buffer)
             self.connection_timer.restart()
-        
+
     def unpack_failed(self, error, buffer):
         """Called when bytes unpacked but packet unpacked failed"""
         self.logger.debug(f"Failed to unpack {error} on a {len(buffer.data)}B packet")
 
-    def packet_received(self, data, name):
+    def packet_received(self, data, name, buffer):
         """
         Called when a packet is received from the remote. Usually this method
         dispatches the packet to a method named ``packet_<packet name>``, or
@@ -308,11 +313,6 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         data = self.cipher.encrypt(data)
         return data
 
-    def pack_data(self, name, data={}):
-        b = Buffer(types=self.send_types)
-        b.pack("packet", {"name": name, "params": data})
-        return self.pack_bytes(b.data)
-    
     def send_packet(self, name, data={}):
         """Sends a packet to the remote."""
 
@@ -321,7 +321,21 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
         self.log_packet("# send", name, data)
 
-        self.transport.write(self.pack_data(name=name, data=data))
+        try:
+            b = Buffer(types=self.send_types)
+            b.pack("packet", {"name": name, "params": data})
+        except Exception as e:
+            raise PackingError from e
+
+        self.send_bytes(b.data)
+
+    def send_bytes(self, bytes_to_send):
+        b = Buffer(bytes_to_send)
+        packet_id = b.unpack_varint()
+        self.logger.debug(
+            f"packet id {packet_id} with {len(b)} bytes left: {b.data}",
+        )
+        self.transport.write(self.pack_bytes(bytes_to_send))
 
 
 class Factory(protocol.Factory, object):
