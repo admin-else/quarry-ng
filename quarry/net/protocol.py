@@ -107,7 +107,7 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
         self.send_types.update(
             self.protocol[mode][TERMS_MAP[self.send_direction]]["types"]
         )
-        self.logger.debug(f"Switched mode to {mode}")
+        self.logger.debug("Switched mode to {mode}", mode=mode)
 
     # Fix ugly twisted methods ------------------------------------------------
 
@@ -269,8 +269,10 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
             self.connection_timer.restart()
 
     def unpack_failed(self, error, buffer):
-        """Called when bytes unpacked but packet unpacked failed"""
-        self.logger.debug(f"Failed to unpack {error} on a {len(buffer.data)}B packet")
+        """
+        Called when bytes unpacked but packet unpacked failed.
+        """
+        self.logger.debug("Failed to unpack {error} on a {buffer_len}B packet", error=error, buffer_len=len(buffer.data))
 
     def packet_received(self, data, name, buffer):
         """
@@ -331,9 +333,8 @@ class Protocol(protocol.Protocol, PacketDispatcher, object):
 
     def send_bytes(self, bytes_to_send):
         b = Buffer(bytes_to_send)
-        packet_id = b.unpack_varint()
         self.logger.debug(
-            f"packet id {packet_id} with {len(b)} bytes left: {b.data}",
+            "packet id {packet_id} with {buffer_len} bytes left: {buffer_bytes}", packet_id=b.unpack_varint(), buffer_len=len(b), buffer_bytes=b.data
         )
         self.transport.write(self.pack_bytes(bytes_to_send))
 

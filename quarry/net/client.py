@@ -107,7 +107,7 @@ class ClientProtocol(Protocol):
         self.status_server_info(json.loads(data["response"]))
 
     def packet_login_disconnect(self, data):
-        self.logger.warn(f"Kicked: {data["reason"]}")
+        self.logger.warn("Kicked: {reason}", reason=data["reason"])
         self.close()
     def packet_encryption_begin(self, data):
         if not self.factory.profile.online:
@@ -154,30 +154,6 @@ class SpawningClientProtocol(ClientProtocol):
         self.pos_look = [0, 0, 0, 0, 0]
 
         super(SpawningClientProtocol, self).__init__(factory, remote_addr)
-
-    # Send a 'player' packet every tick
-    def update_player_inc(self):
-        self.send_packet("player", self.buff_type.pack("?", True))
-
-    # Sent a 'player position and look' packet every 20 ticks
-    def update_player_full(self):
-        self.send_packet(
-            "player_position_and_look",
-            self.buff_type.pack(
-                "dddff?",
-                self.pos_look[0],
-                self.pos_look[1],
-                self.pos_look[2],
-                self.pos_look[3],
-                self.pos_look[4],
-                True,
-            ),
-        )
-
-    def spawn(self):
-        self.ticker.add_loop(1, self.update_player_inc)
-        self.ticker.add_loop(20, self.update_player_full)
-        self.spawned = True
 
     def packet_keep_alive(self, data):
         self.send_packet("keep_alive", data)

@@ -78,7 +78,6 @@ class Bridge(PacketDispatcher):
     log_level = log.LogLevel.info
 
     logger = None
-    buff_type = None
 
     downstream_factory = None
     downstream = None
