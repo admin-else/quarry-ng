@@ -1,14 +1,34 @@
 from twisted.internet import reactor
-from quarry.net.proxy import DownstreamFactory, Bridge
+from quarryng.net.proxy import DownstreamFactory, Bridge
 from twisted.logger import LogLevel
 
+COMMAND_PREFIX = "%"
 
-class QuietBridge(Bridge):
-    pass
+class FlyingBridge(Bridge):
+    def packet_upstream_chat_message(self, data):
+        message = data["message"]
+        if not message.startswith(COMMAND_PREFIX):
+            return data
+        
+        command = message.removeprefix(COMMAND_PREFIX)
+        command, *args = command.split(" ")
+        cmd_func = getattr(self, f"command_{command}", None)
+        if cmd_func:
+            cmd_func(args)
+        else:
+            pass
+            #self.send_message(f"Did not find Command {command}")
+            
+    def command_gamemode(self, args):
+        self.downstream.send_packet("game_state_change", {'reason': 3, 'gameMode': int(args[0])})
+        
+    def send_message(self, message):
+        self.upstream.send_packet("profileless_chat", 
+{'message': {'type': 'string', 'value': message}, 'type': {'registryIndex': 5}, 'name': {'type': 'string', 'value': '%Q'}, 'target': None})
 
 class QuietDownstreamFactory(DownstreamFactory):
-    bridge_class = QuietBridge
-    log_level = LogLevel.debug
+    bridge_class = FlyingBridge
+    log_level = LogLevel.warn
     motd = "Proxy Server"
 
 

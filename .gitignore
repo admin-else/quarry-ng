@@ -1,4 +1,5 @@
 **/__pycache__/
 server/
 .*/
+.*
 quarry/data/* # iam too dumb to figure out git submodules or why i shall use them
